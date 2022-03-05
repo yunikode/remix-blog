@@ -1,4 +1,11 @@
-import { Link, redirect } from "remix";
+import { Link, redirect, useActionData, json } from "remix";
+import { db } from "~/utils/db.server";
+
+function validate(text: string, type: string, length: number) {
+  if (typeof text != "string" || text.length < length) {
+    return `${type} should be at least ${length} characters long`;
+  }
+}
 
 export const action = async ({ request }: any) => {
   const form = await request.formData();
@@ -10,11 +17,23 @@ export const action = async ({ request }: any) => {
     body,
   };
 
-  console.log(fields);
-  // return redirect("/posts");
+  const fieldErrors = {
+    title: validate(title, "Title", 3),
+    body: validate(body, "Body", 10),
+  };
+
+  if (Object.values(fieldErrors).some(Boolean)) {
+    console.log(fieldErrors);
+    return json({ fieldErrors, fields }, { status: 400 });
+  }
+
+  const post = await db.post.create({ data: fields });
+
+  return redirect(`/posts/${post.id}`);
 };
 
 function NewPost() {
+  const actionData = useActionData();
   return (
     <>
       <div className="page-header">
@@ -28,11 +47,21 @@ function NewPost() {
         <form method="POST">
           <div className="form-control">
             <label htmlFor="title">Title</label>
-            <input type="text" name="title" />
+            <input
+              type="text"
+              name="title"
+              defaultValue={actionData?.fields?.title}
+            />
+            <div className="error">
+              <p>{actionData?.fieldErrors?.title}</p>
+            </div>
           </div>
           <div className="form-control">
             <label htmlFor="body">Post Body</label>
-            <textarea id="body" name="body" />
+            <textarea id="body" name="body" defaultValue={actionData?.fields?.body}/>
+            <div className="error">
+              <p>{actionData?.fieldErrors?.body}</p>
+            </div>
           </div>
           <button className="btn btn-block" type="submit">
             Add Post
